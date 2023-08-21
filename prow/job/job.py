@@ -415,22 +415,29 @@ class Jobs:
             print("No job ID input, exit...")
             sys.exit(0)
 
-        return None
-
-    def list_jobs(self, component, branch):
-        """Function list prow jobs"""
+    def list_jobs(self, component, organization, branch, profile):
         if component is None:
             component = "openshift/openshift-tests-private"
+        if organization is None:
+            organization = "openshift"
         if branch is None:
             branch = "master"
-        base_url = f"https://api.github.com/repos/openshift/release/contents/ci-operator/config/{component}/?ref={branch}"
-        req = requests.get(url=base_url, timeout=3)
+        baseURL = (
+            "https://api.github.com/repos/%s/release/contents/ci-operator/config/%s?ref=%s"
+            % (organization, component, branch)
+        )
+        req = requests.get(url=baseURL, timeout=3)
         if req.status_code == 200:
-            file_dict = yaml.load(req.text, Loader=yaml.FullLoader)
+            file_dict = yaml.load(req.text, Loader=yaml.FullLoader) 
+            file_dict =  file_dict if profile is None else [item for item in file_dict if item["name"] == profile]
             file_count = 0
             for file in file_dict:
                 if file["name"].endswith(".yaml"):
-                    url = self.job_url.format(file["name"].strip())
+                    self.jobURL = (
+                            "https://api.github.com/repos/%s/release/contents/ci-operator/config/%s/{}?ref=%s"
+                            % (organization, component, branch)
+                        )
+                    url = self.jobURL.format(file["name"].strip())
                     print(url)
                     self.get_jobs(url)
                     file_count += 1
@@ -561,10 +568,13 @@ def run_cmd(job_name, payload, upgrade_from, upgrade_to):
     "--component",
     help="The detault is 'openshift/openshift-tests-private': https://github.com/openshift/release/tree/master/ci-operator/config/openshift/openshift-tests-private ",
 )
+
+@click.option("--organization", help="Specify the GitHub organization, default is 'openshift'")
 @click.option("--branch", help="the master branch is as default.")
-def run_list_job(component, branch):
+@click.option("--profile", help="Specify the Prow profile, i.e. 'openshift-openshift-tests-private-release-4.14__amd64-nightly-agent-qe', default is 'all'")
+def run_cmd(component, organization, branch, profile):
     """List the jobs which support the API call."""
-    JOB.list_jobs(component, branch)
+    job.list_jobs(component, organization, branch, profile)
 
 
 @cli.command("run_required")
